@@ -6,9 +6,9 @@ import sys
 
 from typing import List, Any
 
-# Antes las definiciones venían de `definiciones.py`. Ahora esas definiciones
-# están inlinadas en `Fuerza bruta.py`. Inicialmente dejamos aliases a Any y
-# los actualizaremos cuando carguemos dinámicamente el módulo de fuerza.
+# Inicialmente dejamos aliases a Any y los actualizaremos 
+# cuando carguemos dinámicamente el módulo de fuerza.
+
 Estudiante: Any = Any
 materia: Any = Any
 materia_solicitada: Any = Any
@@ -24,9 +24,13 @@ def load_fuerza_module() -> Any:
     fuerza = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     sys.modules['fuerza_bruta_mod'] = fuerza
     spec.loader.exec_module(fuerza)  # type: ignore[attr-defined]
-    # Exportar referencias útiles al módulo para que la interfaz pueda usarlas
-    # (tipos y constructores). Esto permite que funciones como parse_input
-    # puedan crear instancias de `materia` / `materia_solicitada`.
+        # Exportar referencias útiles al módulo para que la interfaz pueda usarlas
+        # (tipos y constructores). Esto permite que funciones como parse_input
+        # puedan crear instancias de `materia` / `materia_solicitada` sin depender
+        # de un módulo separado `definiciones.py`. Se usa carga dinámica para
+        # evitar importar el módulo en el nivel superior y para resolver las
+        # dependencias en tiempo de ejecución (útil cuando el módulo principal
+        # fue modificado/inyectado en el proyecto).
     global Estudiante, materia, materia_solicitada
     try:
         Estudiante = getattr(fuerza, 'estudiante')
@@ -50,53 +54,50 @@ def parse_input(text: str):
     m12,p12
     ...
     """
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    if not lines:
+    lineas = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lineas:
         raise ValueError('Archivo vacío o sin líneas válidas')
-
-    idx = 0
+    indice = 0
     try:
-        k = int(lines[idx]); idx += 1
+        num_materias = int(lineas[indice]); indice += 1
     except Exception as e:
         raise ValueError('No se pudo leer k (nº de materias) en la primera línea') from e
 
-    # usamos los tipos importados arriba: materia, materia_solicitada, Estudiante
-
     M = []
-    for _ in range(k):
-        if idx >= len(lines):
+    for _ in range(num_materias):
+        if indice >= len(lineas):
             raise ValueError('Faltan líneas para las materias (M)')
-        parts = lines[idx].split(',')
-        if len(parts) != 2:
-            raise ValueError(f'Formato inválido en materia: {lines[idx]}')
-        codigo = int(parts[0]); cupo = int(parts[1])
+        partes = lineas[indice].split(',')
+        if len(partes) != 2:
+            raise ValueError(f'Formato inválido en materia: {lineas[indice]}')
+        codigo = int(partes[0]); cupo = int(partes[1])
         M.append(materia(codigo, cupo))
-        idx += 1
+        indice += 1
 
-    if idx >= len(lines):
+    if indice >= len(lineas):
         raise ValueError('Falta la línea con el número de estudiantes r')
-    r = int(lines[idx]); idx += 1
+    num_estudiantes = int(lineas[indice]); indice += 1
 
     E = []
-    for _ in range(r):
-        if idx >= len(lines):
+    for _ in range(num_estudiantes):
+        if indice >= len(lineas):
             raise ValueError('Faltan bloques de estudiantes')
-        ej_parts = lines[idx].split(',')
-        if len(ej_parts) != 2:
-            raise ValueError(f'Formato inválido en estudiante header: {lines[idx]}')
-        codigo_est = int(ej_parts[0]); s_j = int(ej_parts[1])
-        idx += 1
-        materias = []
-        for _ in range(s_j):
-            if idx >= len(lines):
+        partes_header = lineas[indice].split(',')
+        if len(partes_header) != 2:
+            raise ValueError(f'Formato inválido en estudiante header: {lineas[indice]}')
+        codigo_estudiante = int(partes_header[0]); numero_solicitudes = int(partes_header[1])
+        indice += 1
+        lista_materias = []
+        for _ in range(numero_solicitudes):
+            if indice >= len(lineas):
                 raise ValueError('Faltan líneas de materias solicitadas para un estudiante')
-            mp = lines[idx].split(',')
-            if len(mp) != 2:
-                raise ValueError(f'Formato inválido en materia solicitada: {lines[idx]}')
-            cod = int(mp[0]); pr = int(mp[1])
-            materias.append(materia_solicitada(cod, pr))
-            idx += 1
-        E.append(Estudiante(codigo_est, materias))
+            partes_mp = lineas[indice].split(',')
+            if len(partes_mp) != 2:
+                raise ValueError(f'Formato inválido en materia solicitada: {lineas[indice]}')
+            codigo_materia = int(partes_mp[0]); prioridad = int(partes_mp[1])
+            lista_materias.append(materia_solicitada(codigo_materia, prioridad))
+            indice += 1
+        E.append(Estudiante(codigo_estudiante, lista_materias))
 
     return M, E
 
@@ -110,15 +111,15 @@ def format_output(insat: float, A: List[_Any]) -> str:
     Luego para cada estudiante en orden: una línea 'e_j,a_j' (código, cantidad asignadas)
     seguida de a_j líneas, cada una con el código de asignatura asignado.
     """
-    out_lines = []
-    out_lines.append(f"{insat:.3f}")
-    for est in A:
-        materias = list(est.getMateriasSolicitadas())
-        out_lines.append(f"{est.getCodigo()},{len(materias)}")
-        for m in materias:
-            out_lines.append(str(m.codigo))
+    lineas_salida = []
+    lineas_salida.append(f"{insat:.3f}")
+    for estudiante_asignado in A:
+        materias_asignadas = list(estudiante_asignado.getMateriasSolicitadas())
+        lineas_salida.append(f"{estudiante_asignado.getCodigo()},{len(materias_asignadas)}")
+        for materia_asig in materias_asignadas:
+            lineas_salida.append(str(materia_asig.codigo))
 
-    return '\n'.join(out_lines)
+    return '\n'.join(lineas_salida)
 
 
 class App:
@@ -134,9 +135,6 @@ class App:
 
         self.open_btn = tk.Button(btn_frame, text='Abrir archivo de prueba', command=self.open_file)
         self.open_btn.pack(side='left')
-
-    # Nota: se eliminó la UI para el límite por combinaciones. La búsqueda
-    # ahora sólo se detiene por tiempo (fijo a 300s en el módulo de fuerza bruta).
 
         tk.Label(btn_frame, text='Tiempo máximo: 5 minutos (300 segundos)').pack(side='left', padx=(8,2))
 
@@ -162,14 +160,14 @@ class App:
         self.current_path = None
 
     def open_file(self):
-        path = filedialog.askopenfilename(title='Seleccionar archivo de prueba', filetypes=[('Text files', '*.txt'), ('All files', '*.*')])
-        if not path:
+        ruta_archivo = filedialog.askopenfilename(title='Seleccionar archivo de prueba', filetypes=[('Text files', '*.txt'), ('All files', '*.*')])
+        if not ruta_archivo:
             return
-        self.current_path = path
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        self.current_path = ruta_archivo
+        with open(ruta_archivo, 'r', encoding='utf-8') as f:
+            contenido = f.read()
         self.input_text.delete('1.0', tk.END)
-        self.input_text.insert(tk.END, content)
+        self.input_text.insert(tk.END, contenido)
         self.output_text.delete('1.0', tk.END)
 
 
@@ -183,8 +181,8 @@ class App:
         self.animate_loading()
         # Lanzar el cálculo en un hilo aparte
         import threading
-        t = threading.Thread(target=self.process_file_thread, daemon=True)
-        t.start()
+        hilo_proceso = threading.Thread(target=self.process_file_thread, daemon=True)
+        hilo_proceso.start()
 
     def process_file_thread(self):
         # Esta función corre en un hilo aparte
@@ -193,13 +191,13 @@ class App:
             # constructores/tuplas (`materia`, `materia_solicitada`, `estudiante`)
             fuerza = load_fuerza_module()
 
-            content = self.input_text.get('1.0', tk.END)
-            M, E = parse_input(content)
+            contenido = self.input_text.get('1.0', tk.END)
+            M, E = parse_input(contenido)
         except Exception as e:
             self.root.after(0, lambda: self.finish_process(error=f'Error al parsear: {e}'))
             return
         try:
-            A, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
+            asignacion, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
         except MemoryError as me:
             self.root.after(0, lambda: self.finish_process(error=f'Error de memoria / combinaciones: {me}'))
             return
@@ -209,8 +207,8 @@ class App:
         except Exception as e:
             self.root.after(0, lambda: self.finish_process(error=f'Error al ejecutar: {e}'))
             return
-        salida = format_output(insat, A)
-        self.root.after(0, lambda: self.finish_process(output=salida))
+        salida_formateada = format_output(insat, asignacion)
+        self.root.after(0, lambda: self.finish_process(output=salida_formateada))
 
     def finish_process(self, output=None, error=None, timeout=False):
         # Detener animación de 'Cargando...'
@@ -236,8 +234,6 @@ class App:
         self.loading_label.config(text=estados[self._loading_anim_state % 4])
         self._loading_anim_state = (self._loading_anim_state + 1) % 4
         self._loading_anim_id = self.root.after(400, self.animate_loading)
-
-    # Nota: calculate_max_limit eliminado porque ya no usamos límite por combinaciones
 
 
 def get_available_memory_bytes() -> int | None:
