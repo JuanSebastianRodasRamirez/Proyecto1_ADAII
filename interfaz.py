@@ -6,8 +6,12 @@ import sys
 
 from typing import List, Any
 
-# Importar tipos concretos para anotaciones y evitar avisos del analizador
-from definiciones import estudiante as Estudiante, materia, materia_solicitada
+# Antes las definiciones venían de `definiciones.py`. Ahora esas definiciones
+# están inlinadas en `Fuerza bruta.py`. Inicialmente dejamos aliases a Any y
+# los actualizaremos cuando carguemos dinámicamente el módulo de fuerza.
+Estudiante: Any = Any
+materia: Any = Any
+materia_solicitada: Any = Any
 
 PROJECT_DIR = Path(__file__).parent
 
@@ -20,6 +24,17 @@ def load_fuerza_module() -> Any:
     fuerza = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     sys.modules['fuerza_bruta_mod'] = fuerza
     spec.loader.exec_module(fuerza)  # type: ignore[attr-defined]
+    # Exportar referencias útiles al módulo para que la interfaz pueda usarlas
+    # (tipos y constructores). Esto permite que funciones como parse_input
+    # puedan crear instancias de `materia` / `materia_solicitada`.
+    global Estudiante, materia, materia_solicitada
+    try:
+        Estudiante = getattr(fuerza, 'estudiante')
+        materia = getattr(fuerza, 'materia')
+        materia_solicitada = getattr(fuerza, 'materia_solicitada')
+    except Exception:
+        # Si algún nombre falta, dejar los aliases como estaban y seguir
+        pass
     return fuerza
 
 
@@ -86,7 +101,9 @@ def parse_input(text: str):
     return M, E
 
 
-def format_output(insat: float, A: List[Estudiante]) -> str:
+from typing import Any as _Any
+
+def format_output(insat: float, A: List[_Any]) -> str:
     """Formatea la salida de acuerdo al enunciado.
 
     Primera línea: costo (insatisfacción general) con 3 decimales
@@ -172,13 +189,16 @@ class App:
     def process_file_thread(self):
         # Esta función corre en un hilo aparte
         try:
+            # Cargar primero el módulo de fuerza bruta para obtener los
+            # constructores/tuplas (`materia`, `materia_solicitada`, `estudiante`)
+            fuerza = load_fuerza_module()
+
             content = self.input_text.get('1.0', tk.END)
             M, E = parse_input(content)
         except Exception as e:
             self.root.after(0, lambda: self.finish_process(error=f'Error al parsear: {e}'))
             return
         try:
-            fuerza = load_fuerza_module()
             A, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
         except MemoryError as me:
             self.root.after(0, lambda: self.finish_process(error=f'Error de memoria / combinaciones: {me}'))
