@@ -17,20 +17,34 @@ PROJECT_DIR = Path(__file__).parent
 
 
 def load_fuerza_module() -> Any:
-    fb_path = PROJECT_DIR / 'Fuerza bruta.py'
-    spec = importlib.util.spec_from_file_location('fuerza_bruta_mod', str(fb_path))
-    if spec is None or spec.loader is None:
-        raise FileNotFoundError(f"No se pudo cargar el módulo desde {fb_path}")
-    fuerza = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    sys.modules['fuerza_bruta_mod'] = fuerza
-    spec.loader.exec_module(fuerza)  # type: ignore[attr-defined]
-        # Exportar referencias útiles al módulo para que la interfaz pueda usarlas
-        # (tipos y constructores). Esto permite que funciones como parse_input
-        # puedan crear instancias de `materia` / `materia_solicitada` sin depender
-        # de un módulo separado `definiciones.py`. Se usa carga dinámica para
-        # evitar importar el módulo en el nivel superior y para resolver las
-        # dependencias en tiempo de ejecución (útil cuando el módulo principal
-        # fue modificado/inyectado en el proyecto).
+    # Intentar varios nombres posibles del archivo que contiene el módulo
+    candidates = [
+        PROJECT_DIR / 'fuerzabruta.py',
+        PROJECT_DIR / 'Fuerza bruta.py',
+        PROJECT_DIR / 'fuerza_bruta.py',
+        PROJECT_DIR / 'fuerzaBruta.py',
+    ]
+    fuerza = None
+    for fb_path in candidates:
+        if not fb_path.exists():
+            continue
+        spec = importlib.util.spec_from_file_location('fuerza_bruta_mod', str(fb_path))
+        if spec is None or spec.loader is None:
+            continue
+        fuerza = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        sys.modules['fuerza_bruta_mod'] = fuerza
+        spec.loader.exec_module(fuerza)  # type: ignore[attr-defined]
+        break
+    if fuerza is None:
+        raise FileNotFoundError('No se encontró el módulo de Fuerza Bruta en el proyecto')
+
+    # Exportar referencias útiles al módulo para que la interfaz pueda usarlas
+    # (tipos y constructores). Esto permite que funciones como parse_input
+    # puedan crear instancias de `materia` / `materia_solicitada` sin depender
+    # de un módulo separado `definiciones.py`. Se usa carga dinámica para
+    # evitar importar el módulo en el nivel superior y para resolver las
+    # dependencias en tiempo de ejecución (útil cuando el módulo principal
+    # fue modificado/inyectado en el proyecto).
     global Estudiante, materia, materia_solicitada
     try:
         Estudiante = getattr(fuerza, 'estudiante')
@@ -44,14 +58,37 @@ def load_fuerza_module() -> Any:
 
 def load_pd_module() -> Any:
     """Carga el módulo de programación dinámica"""
-    pd_path = PROJECT_DIR / 'roc_pd.py'
-    spec = importlib.util.spec_from_file_location('roc_pd_mod', str(pd_path))
-    if spec is None or spec.loader is None:
-        raise FileNotFoundError(f"No se pudo cargar el módulo desde {pd_path}")
-    pd_mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    sys.modules['roc_pd_mod'] = pd_mod
-    spec.loader.exec_module(pd_mod)  # type: ignore[attr-defined]
+    candidates = [
+        PROJECT_DIR / 'dinamico.py',
+        PROJECT_DIR / 'roc_pd.py',
+        PROJECT_DIR / 'dinamico_pd.py',
+    ]
+    pd_mod = None
+    for pd_path in candidates:
+        if not pd_path.exists():
+            continue
+        spec = importlib.util.spec_from_file_location('roc_pd_mod', str(pd_path))
+        if spec is None or spec.loader is None:
+            continue
+        pd_mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        sys.modules['roc_pd_mod'] = pd_mod
+        spec.loader.exec_module(pd_mod)  # type: ignore[attr-defined]
+        break
+    if pd_mod is None:
+        raise FileNotFoundError('No se encontró el módulo de Programación Dinámica en el proyecto')
     return pd_mod
+
+
+def load_voraz_module() -> Any:
+    """Carga el módulo voraz (voraz.py)"""
+    vz_path = PROJECT_DIR / 'voraz.py'
+    spec = importlib.util.spec_from_file_location('voraz_mod', str(vz_path))
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"No se pudo cargar el módulo voraz desde {vz_path}")
+    vz_mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    sys.modules['voraz_mod'] = vz_mod
+    spec.loader.exec_module(vz_mod)  # type: ignore[attr-defined]
+    return vz_mod
 
 
 def parse_input_fb(text: str):
@@ -203,6 +240,19 @@ def format_output_pd(insat: float, solucion: List[_Any], E: List[_Any]) -> str:
     return '\n'.join(lineas_salida)
 
 
+def write_generic_output(filename: str, content: str) -> Path:
+    """Escribe el contenido (string) en un archivo dentro de PROJECT_DIR y retorna la Path.
+
+    filename: nombre de archivo relativo (por ejemplo 'salida_dinamica1.txt')
+    content: contenido ya formateado como texto
+    """
+    out_path = PROJECT_DIR / filename
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return out_path
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -232,6 +282,11 @@ class App:
                                  variable=self.algorithm_var, value='fb',
                                  command=self.on_algorithm_change)
         fb_radio.pack(side='left', padx=10)
+
+        vz_radio = tk.Radiobutton(algorithm_frame, text='Voraz',
+                                 variable=self.algorithm_var, value='vz',
+                                 command=self.on_algorithm_change)
+        vz_radio.pack(side='left', padx=10)
 
         # Frame para botones
         btn_frame = tk.Frame(control_frame)
@@ -267,8 +322,12 @@ class App:
         algorithm = self.algorithm_var.get()
         if algorithm == 'pd':
             self.root.title('Interfaz - Asignación de materias (Programación Dinámica)')
-        else:
+        elif algorithm == 'fb':
             self.root.title('Interfaz - Asignación de materias (Fuerza Bruta)')
+        elif algorithm == 'vz':
+            self.root.title('Interfaz - Asignación de materias (Voraz)')
+        else:
+            self.root.title('Interfaz - Asignación de materias')
 
     def open_file(self):
         ruta_archivo = filedialog.askopenfilename(title='Seleccionar archivo de prueba', filetypes=[('Text files', '*.txt'), ('All files', '*.*')])
@@ -304,25 +363,54 @@ class App:
                 # Fuerza Bruta
                 fuerza = load_fuerza_module()
                 M, E = parse_input_fb(contenido)
-                asignacion, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
+                asignacion, insat = fuerza.rocFB(k=len(M), r=len(E), M=M, E=E)
                 salida_formateada = format_output_fb(insat, asignacion)
+            elif algorithm == 'vz':
+                # Voraz
+                voraz = load_voraz_module()
+                M, E = parse_input_pd(contenido)
+                A, F = voraz.rocV(len(M), len(E), M, E)
+                # Formatear salida del voraz similar a la especificación
+                partes = [f"{F:.6f}"]
+                for est, ms in E:
+                    asignadas = A.get(est, [])
+                    partes.append(f"{est},{len(asignadas)}")
+                    for m in asignadas:
+                        partes.append(str(m))
+                salida_formateada = '\n'.join(partes)
             else:
                 # Programación Dinámica
                 pd_mod = load_pd_module()
                 M, E = parse_input_pd(contenido)
                 solucion, insat = pd_mod.rocPD(M, E)
                 salida_formateada = format_output_pd(insat, solucion, E)
-                
-        except Exception as e:
-            self.root.after(0, lambda: self.finish_process(error=f'Error al parsear/ejecutar: {e}'))
-            return
         except MemoryError as me:
-            self.root.after(0, lambda: self.finish_process(error=f'Error de memoria / combinaciones: {me}'))
+            msg = f'Error de memoria / combinaciones: {me}'
+            self.root.after(0, lambda m=msg: self.finish_process(error=m))
             return
         except TimeoutError:
             self.root.after(0, lambda: self.finish_process(timeout=True))
             return
+        except Exception as e:
+            msg = f'Error al parsear/ejecutar: {e}'
+            # Capture message in default arg so the variable doesn't become unbound
+            self.root.after(0, lambda m=msg: self.finish_process(error=m))
+            return
         
+        # Escribir salida en archivo según algoritmo
+        try:
+            if algorithm == 'fb':
+                out_name = 'salida_fuerzabruta1.txt'
+            elif algorithm == 'vz':
+                out_name = 'salida_voraz1.txt'
+            else:
+                out_name = 'salida_dinamica1.txt'
+            out_path = write_generic_output(out_name, salida_formateada)
+            salida_formateada = salida_formateada + '\n\nArchivo escrito en: ' + str(out_path)
+        except Exception as e:
+            # No hacemos fallar el flujo por error de IO; mostramos el error
+            salida_formateada = salida_formateada + f"\n\n(Advertencia: no se pudo escribir archivo: {e})"
+
         self.root.after(0, lambda: self.finish_process(output=salida_formateada))
 
     def finish_process(self, output=None, error=None, timeout=False):
@@ -354,7 +442,7 @@ class App:
 def get_available_memory_bytes() -> int | None:
     # Intentar psutil
     try:
-        import psutil
+        import psutil  # type: ignore
         vm = psutil.virtual_memory()
         return int(vm.available)
     except Exception:
