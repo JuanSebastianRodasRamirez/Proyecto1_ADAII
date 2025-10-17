@@ -42,8 +42,20 @@ def load_fuerza_module() -> Any:
     return fuerza
 
 
-def parse_input(text: str):
-    """Parsea el texto de entrada según el formato del enunciado.
+def load_pd_module() -> Any:
+    """Carga el módulo de programación dinámica"""
+    pd_path = PROJECT_DIR / 'roc_pd.py'
+    spec = importlib.util.spec_from_file_location('roc_pd_mod', str(pd_path))
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"No se pudo cargar el módulo desde {pd_path}")
+    pd_mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    sys.modules['roc_pd_mod'] = pd_mod
+    spec.loader.exec_module(pd_mod)  # type: ignore[attr-defined]
+    return pd_mod
+
+
+def parse_input_fb(text: str):
+    """Parsea el texto de entrada según el formato del enunciado para Fuerza Bruta.
 
     Formato esperado:
     k
@@ -102,10 +114,62 @@ def parse_input(text: str):
     return M, E
 
 
+def parse_input_pd(text: str):
+    """Parsea el texto de entrada para Programación Dinámica.
+    Retorna M, E en el formato que espera rocPD."""
+    lineas = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lineas:
+        raise ValueError('Archivo vacío o sin líneas válidas')
+    
+    indice = 0
+    try:
+        num_materias = int(lineas[indice]); indice += 1
+    except Exception as e:
+        raise ValueError('No se pudo leer k (nº de materias) en la primera línea') from e
+
+    M = []
+    for _ in range(num_materias):
+        if indice >= len(lineas):
+            raise ValueError('Faltan líneas para las materias (M)')
+        partes = lineas[indice].split(',')
+        if len(partes) != 2:
+            raise ValueError(f'Formato inválido en materia: {lineas[indice]}')
+        codigo = int(partes[0]); cupo = int(partes[1])
+        M.append((codigo, cupo))
+        indice += 1
+
+    if indice >= len(lineas):
+        raise ValueError('Falta la línea con el número de estudiantes r')
+    num_estudiantes = int(lineas[indice]); indice += 1
+
+    E = []
+    for _ in range(num_estudiantes):
+        if indice >= len(lineas):
+            raise ValueError('Faltan bloques de estudiantes')
+        partes_header = lineas[indice].split(',')
+        if len(partes_header) != 2:
+            raise ValueError(f'Formato inválido en estudiante header: {lineas[indice]}')
+        codigo_estudiante = int(partes_header[0]); numero_solicitudes = int(partes_header[1])
+        indice += 1
+        msj = []
+        for _ in range(numero_solicitudes):
+            if indice >= len(lineas):
+                raise ValueError('Faltan líneas de materias solicitadas para un estudiante')
+            partes_mp = lineas[indice].split(',')
+            if len(partes_mp) != 2:
+                raise ValueError(f'Formato inválido en materia solicitada: {lineas[indice]}')
+            codigo_materia = int(partes_mp[0]); prioridad = int(partes_mp[1])
+            msj.append((codigo_materia, prioridad))
+            indice += 1
+        E.append((codigo_estudiante, msj))
+
+    return M, E
+
+
 from typing import Any as _Any
 
-def format_output(insat: float, A: List[_Any]) -> str:
-    """Formatea la salida de acuerdo al enunciado.
+def format_output_fb(insat: float, A: List[_Any]) -> str:
+    """Formatea la salida de acuerdo al enunciado para Fuerza Bruta.
 
     Primera línea: costo (insatisfacción general) con 3 decimales
     Luego para cada estudiante en orden: una línea 'e_j,a_j' (código, cantidad asignadas)
@@ -122,28 +186,67 @@ def format_output(insat: float, A: List[_Any]) -> str:
     return '\n'.join(lineas_salida)
 
 
+def format_output_pd(insat: float, solucion: List[_Any], E: List[_Any]) -> str:
+    """Formatea la salida de acuerdo al enunciado para Programación Dinámica."""
+    lineas_salida = []
+    lineas_salida.append(f"{insat:.6f}")
+    
+    # Crear mapa de asignaciones
+    asign_map = {est: [m for (m, _) in A] for (est, A) in solucion}
+    
+    for est, _ in E:
+        asign = asign_map.get(est, [])
+        lineas_salida.append(f"{est},{len(asign)}")
+        for m in asign:
+            lineas_salida.append(str(m))
+
+    return '\n'.join(lineas_salida)
+
+
 class App:
     def __init__(self, root):
         self.root = root
-        root.title('Interfaz - Asignación de materias (Fuerza bruta)')
+        root.title('Interfaz - Asignación de materias')
 
         frm = tk.Frame(root)
         frm.pack(fill='both', expand=True, padx=8, pady=8)
 
-        btn_frame = tk.Frame(frm)
-        btn_frame.pack(fill='x')
+        # Frame para controles superiores
+        control_frame = tk.Frame(frm)
+        control_frame.pack(fill='x', pady=(0, 8))
+
+        # Selector de algoritmo
+        algorithm_frame = tk.Frame(control_frame)
+        algorithm_frame.pack(fill='x')
+
+        tk.Label(algorithm_frame, text='Algoritmo:', font=('Arial', 10, 'bold')).pack(side='left')
+        
+        self.algorithm_var = tk.StringVar(value='pd')
+        
+        pd_radio = tk.Radiobutton(algorithm_frame, text='Programación Dinámica', 
+                                 variable=self.algorithm_var, value='pd',
+                                 command=self.on_algorithm_change)
+        pd_radio.pack(side='left', padx=10)
+        
+        fb_radio = tk.Radiobutton(algorithm_frame, text='Fuerza Bruta', 
+                                 variable=self.algorithm_var, value='fb',
+                                 command=self.on_algorithm_change)
+        fb_radio.pack(side='left', padx=10)
+
+        # Frame para botones
+        btn_frame = tk.Frame(control_frame)
+        btn_frame.pack(fill='x', pady=(8, 0))
 
         self.open_btn = tk.Button(btn_frame, text='Abrir archivo de prueba', command=self.open_file)
         self.open_btn.pack(side='left')
 
-        tk.Label(btn_frame, text='Tiempo máximo: 5 minutos (300 segundos)').pack(side='left', padx=(8,2))
-
-
+        self.time_label = tk.Label(btn_frame, text='Tiempo máximo: 5 minutos (300 segundos)')
+        self.time_label.pack(side='left', padx=(8,2))
 
         self.run_btn = tk.Button(btn_frame, text='Procesar y obtener solución', command=self.start_process_thread)
         self.run_btn.pack(side='left', padx=8)
 
-    # Texto animado de carga
+        # Texto animado de carga
         self.loading_label = tk.Label(btn_frame, text='', font=('Arial', 11, 'bold'))
         self.loading_label.pack(side='left', padx=(12,0))
         self._loading_anim_id = None
@@ -159,6 +262,14 @@ class App:
 
         self.current_path = None
 
+    def on_algorithm_change(self):
+        """Se ejecuta cuando cambia la selección del algoritmo"""
+        algorithm = self.algorithm_var.get()
+        if algorithm == 'pd':
+            self.root.title('Interfaz - Asignación de materias (Programación Dinámica)')
+        else:
+            self.root.title('Interfaz - Asignación de materias (Fuerza Bruta)')
+
     def open_file(self):
         ruta_archivo = filedialog.askopenfilename(title='Seleccionar archivo de prueba', filetypes=[('Text files', '*.txt'), ('All files', '*.*')])
         if not ruta_archivo:
@@ -169,7 +280,6 @@ class App:
         self.input_text.delete('1.0', tk.END)
         self.input_text.insert(tk.END, contenido)
         self.output_text.delete('1.0', tk.END)
-
 
     def start_process_thread(self):
         # Deshabilitar botones y limpiar salida
@@ -186,28 +296,33 @@ class App:
 
     def process_file_thread(self):
         # Esta función corre en un hilo aparte
+        algorithm = self.algorithm_var.get()
+        contenido = self.input_text.get('1.0', tk.END)
+        
         try:
-            # Cargar primero el módulo de fuerza bruta para obtener los
-            # constructores/tuplas (`materia`, `materia_solicitada`, `estudiante`)
-            fuerza = load_fuerza_module()
-
-            contenido = self.input_text.get('1.0', tk.END)
-            M, E = parse_input(contenido)
+            if algorithm == 'fb':
+                # Fuerza Bruta
+                fuerza = load_fuerza_module()
+                M, E = parse_input_fb(contenido)
+                asignacion, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
+                salida_formateada = format_output_fb(insat, asignacion)
+            else:
+                # Programación Dinámica
+                pd_mod = load_pd_module()
+                M, E = parse_input_pd(contenido)
+                solucion, insat = pd_mod.rocPD(M, E)
+                salida_formateada = format_output_pd(insat, solucion, E)
+                
         except Exception as e:
-            self.root.after(0, lambda: self.finish_process(error=f'Error al parsear: {e}'))
+            self.root.after(0, lambda: self.finish_process(error=f'Error al parsear/ejecutar: {e}'))
             return
-        try:
-            asignacion, insat = fuerza.rocFB(k=0, r=len(E), M=M, E=E)
         except MemoryError as me:
             self.root.after(0, lambda: self.finish_process(error=f'Error de memoria / combinaciones: {me}'))
             return
         except TimeoutError:
             self.root.after(0, lambda: self.finish_process(timeout=True))
             return
-        except Exception as e:
-            self.root.after(0, lambda: self.finish_process(error=f'Error al ejecutar: {e}'))
-            return
-        salida_formateada = format_output(insat, asignacion)
+        
         self.root.after(0, lambda: self.finish_process(output=salida_formateada))
 
     def finish_process(self, output=None, error=None, timeout=False):
