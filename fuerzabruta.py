@@ -1,3 +1,19 @@
+# --------------------------------------------------------
+# Proyecto ADA II - Repartición Óptima de Cupos
+# Integrantes: 
+# Juan Sebastian Tobar Moriones (20240194)
+# Juan Sebastian Rodas Ramirez (202359681)
+# Johan Andres Ceballos Tabarez (202372229)
+#
+# Universidad: Universidad del Valle
+# Profesor: Jesús Alexander Aranda
+#
+# Fecha de creación: 28 de septiembre del 2025
+# Última modificación: 17 de octubre del 2025
+#
+# Archivo: fuerzabruta.py
+# --------------------------------------------------------
+
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))

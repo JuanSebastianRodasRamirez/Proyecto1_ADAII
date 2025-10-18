@@ -1,4 +1,26 @@
+# --------------------------------------------------------
+# Proyecto ADA II - Repartición Óptima de Cupos
+# Integrantes: 
+# Juan Sebastian Tobar Moriones (20240194)
+# Juan Sebastian Rodas Ramirez (202359681)
+# Johan Andres Ceballos Tabarez (202372229)
+#
+# Universidad: Universidad del Valle
+# Profesor: Jesús Alexander Aranda
+#
+# Fecha de creación: 28 de septiembre del 2025
+# Última modificación: 17 de octubre del 2025
+#
+# Archivo: dinamico.py
+# --------------------------------------------------------
+
+
 from math import prod
+import time
+from typing import Optional
+
+# Tiempo máximo por defecto (5 minutos)
+TIEMPO_MAX_SEGUNDOS = 5 * 60
 
 # ----------------------------------------
 # 1. Conversión de vector de cupos <-> número
@@ -77,7 +99,7 @@ def subconjuntos_validos(msj, cupos_actuales, materias):
 # ----------------------------------------
 # 4. Algoritmo principal de Programación Dinámica
 # ----------------------------------------
-def rocPD(M, E):
+def rocPD(M, E, tiempo_max: Optional[float] = None):
     """
     M: lista de tuplas (codigo_materia, cupo)
     E: lista de tuplas (codigo_estudiante, [(materia, prioridad)])
@@ -98,6 +120,10 @@ def rocPD(M, E):
     total_estados = prod([x + 1 for x in cupos])
     r = len(E)
 
+    # control de tiempo
+    tiempo_max = TIEMPO_MAX_SEGUNDOS if tiempo_max is None else tiempo_max
+    tiempo_inicio = time.time()
+
     # DP[j][n]: mínima insatisfacción con j estudiantes y estado n
     DP0 = [0.0] * total_estados  # estado base (0 estudiantes)
     decision = {}
@@ -107,6 +133,9 @@ def rocPD(M, E):
         nuevaDP = [float('inf')] * total_estados
         
         for n in range(total_estados):
+            # comprobar timeout periódicamente
+            if tiempo_max is not None and (time.time() - tiempo_inicio) > tiempo_max:
+                raise TimeoutError(f"Tiempo máximo de {tiempo_max} segundos excedido antes de hallar una solución óptima")
             cupos_actuales = numero_a_vector(n, cupos)
             
             # Obtener subconjuntos válidos para este estudiante

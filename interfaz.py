@@ -1,3 +1,19 @@
+# --------------------------------------------------------
+# Proyecto ADA II - Repartición Óptima de Cupos
+# Integrantes: 
+# Juan Sebastian Tobar Moriones (20240194)
+# Juan Sebastian Rodas Ramirez (202359681)
+# Johan Andres Ceballos Tabarez (202372229)
+#
+# Universidad: Universidad del Valle
+# Profesor: Jesús Alexander Aranda
+#
+# Fecha de creación: 28 de septiembre del 2025
+# Última modificación: 17 de octubre del 2025
+#
+# Archivo: interfaz.py
+# --------------------------------------------------------
+
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
@@ -112,6 +128,15 @@ def parse_input_fb(text: str):
     except Exception as e:
         raise ValueError('No se pudo leer k (nº de materias) en la primera línea') from e
 
+    # Soportar códigos alfanuméricos (p. ej. 'M1'). Para el módulo de fuerza bruta
+    # mapeamos internamente cada código a un entero y guardamos mapas inversos
+    # para formatear la salida con los códigos originales.
+    global _fb_last_materia_inv_map, _fb_last_student_inv_map
+    _fb_last_materia_inv_map = {}
+    _fb_last_student_inv_map = {}
+    materia_code_to_int = {}
+    next_mat_id = 1
+
     M = []
     for _ in range(num_materias):
         if indice >= len(lineas):
@@ -119,8 +144,24 @@ def parse_input_fb(text: str):
         partes = lineas[indice].split(',')
         if len(partes) != 2:
             raise ValueError(f'Formato inválido en materia: {lineas[indice]}')
-        codigo = int(partes[0]); cupo = int(partes[1])
-        M.append(materia(codigo, cupo))
+        code_str = partes[0].strip()
+        cupo = int(partes[1])
+        if code_str not in materia_code_to_int:
+            materia_code_to_int[code_str] = next_mat_id
+            _fb_last_materia_inv_map[next_mat_id] = code_str
+            next_mat_id += 1
+        mid = materia_code_to_int[code_str]
+        # Intentar instanciar usando el constructor del módulo; si falla, usar fallback
+        try:
+            M.append(materia(mid, cupo))
+        except Exception:
+            class _Mat:
+                def __init__(self, codigo, cupo):
+                    self.codigo = codigo
+                    self.cupo = cupo
+                def __repr__(self):
+                    return f"materia({self.codigo},{self.cupo})"
+            M.append(_Mat(mid, cupo))
         indice += 1
 
     if indice >= len(lineas):
@@ -128,14 +169,24 @@ def parse_input_fb(text: str):
     num_estudiantes = int(lineas[indice]); indice += 1
 
     E = []
+    student_code_to_int = {}
+    next_st_id = 1
     for _ in range(num_estudiantes):
         if indice >= len(lineas):
             raise ValueError('Faltan bloques de estudiantes')
         partes_header = lineas[indice].split(',')
         if len(partes_header) != 2:
             raise ValueError(f'Formato inválido en estudiante header: {lineas[indice]}')
-        codigo_estudiante = int(partes_header[0]); numero_solicitudes = int(partes_header[1])
+        code_str = partes_header[0].strip()
+        numero_solicitudes = int(partes_header[1])
+        # mapear código de estudiante a entero
+        if code_str not in student_code_to_int:
+            student_code_to_int[code_str] = next_st_id
+            _fb_last_student_inv_map[next_st_id] = code_str
+            next_st_id += 1
+        codigo_estudiante = student_code_to_int[code_str]
         indice += 1
+
         lista_materias = []
         for _ in range(numero_solicitudes):
             if indice >= len(lineas):
@@ -143,10 +194,49 @@ def parse_input_fb(text: str):
             partes_mp = lineas[indice].split(',')
             if len(partes_mp) != 2:
                 raise ValueError(f'Formato inválido en materia solicitada: {lineas[indice]}')
-            codigo_materia = int(partes_mp[0]); prioridad = int(partes_mp[1])
-            lista_materias.append(materia_solicitada(codigo_materia, prioridad))
+            codigo_materia_str = partes_mp[0].strip()
+            prioridad = int(partes_mp[1])
+            if codigo_materia_str not in materia_code_to_int:
+                # asignar id si apareció por primera vez (defensivo)
+                materia_code_to_int[codigo_materia_str] = next_mat_id
+                _fb_last_materia_inv_map[next_mat_id] = codigo_materia_str
+                next_mat_id += 1
+            codigo_materia = materia_code_to_int[codigo_materia_str]
+            # intentar construir materia_solicitada con el constructor del módulo; fallback si falla
+            try:
+                lista_materias.append(materia_solicitada(codigo_materia, prioridad))
+            except Exception:
+                class _MatSol:
+                    def __init__(self, codigo, prioridad):
+                        self.codigo = codigo
+                        self.prioridad = prioridad
+                    def __repr__(self):
+                        return f"mat_sol({self.codigo},{self.prioridad})"
+                lista_materias.append(_MatSol(codigo_materia, prioridad))
             indice += 1
-        E.append(Estudiante(codigo_estudiante, lista_materias))
+
+        # intentar crear Estudiante usando el constructor del módulo; fallback si falla
+        try:
+            E.append(Estudiante(codigo_estudiante, lista_materias))
+        except Exception:
+            class _Est:
+                def __init__(self, codigo, materias):
+                    self.codigo = codigo
+                    self._ms = materias
+                def getCodigo(self):
+                    return self.codigo
+                def getMateriasSolicitadas(self):
+                    return self._ms
+                def totalMaterias(self):
+                    return len(self._ms)
+                def sumaPrioridades(self):
+                    s = 0
+                    for m in self._ms:
+                        s += getattr(m, 'prioridad', 0)
+                    return s
+                def __repr__(self):
+                    return f"est({self.codigo},{self._ms})"
+            E.append(_Est(codigo_estudiante, lista_materias))
 
     return M, E
 
@@ -164,6 +254,7 @@ def parse_input_pd(text: str):
     except Exception as e:
         raise ValueError('No se pudo leer k (nº de materias) en la primera línea') from e
 
+    # Aceptar códigos alfanuméricos para materias (p. ej. 'M1')
     M = []
     for _ in range(num_materias):
         if indice >= len(lineas):
@@ -171,8 +262,9 @@ def parse_input_pd(text: str):
         partes = lineas[indice].split(',')
         if len(partes) != 2:
             raise ValueError(f'Formato inválido en materia: {lineas[indice]}')
-        codigo = int(partes[0]); cupo = int(partes[1])
-        M.append((codigo, cupo))
+        codigo_str = partes[0].strip()
+        cupo = int(partes[1])
+        M.append((codigo_str, cupo))
         indice += 1
 
     if indice >= len(lineas):
@@ -186,7 +278,8 @@ def parse_input_pd(text: str):
         partes_header = lineas[indice].split(',')
         if len(partes_header) != 2:
             raise ValueError(f'Formato inválido en estudiante header: {lineas[indice]}')
-        codigo_estudiante = int(partes_header[0]); numero_solicitudes = int(partes_header[1])
+        codigo_estudiante = partes_header[0].strip()
+        numero_solicitudes = int(partes_header[1])
         indice += 1
         msj = []
         for _ in range(numero_solicitudes):
@@ -195,7 +288,7 @@ def parse_input_pd(text: str):
             partes_mp = lineas[indice].split(',')
             if len(partes_mp) != 2:
                 raise ValueError(f'Formato inválido en materia solicitada: {lineas[indice]}')
-            codigo_materia = int(partes_mp[0]); prioridad = int(partes_mp[1])
+            codigo_materia = partes_mp[0].strip(); prioridad = int(partes_mp[1])
             msj.append((codigo_materia, prioridad))
             indice += 1
         E.append((codigo_estudiante, msj))
@@ -214,11 +307,18 @@ def format_output_fb(insat: float, A: List[_Any]) -> str:
     """
     lineas_salida = []
     lineas_salida.append(f"{insat:.3f}")
+    # Si existen mapas inversos generados por parse_input_fb, re-mapear códigos
+    inv_mat = globals().get('_fb_last_materia_inv_map')
+    inv_st = globals().get('_fb_last_student_inv_map')
     for estudiante_asignado in A:
         materias_asignadas = list(estudiante_asignado.getMateriasSolicitadas())
-        lineas_salida.append(f"{estudiante_asignado.getCodigo()},{len(materias_asignadas)}")
+        codigo_num = estudiante_asignado.getCodigo()
+        codigo_str = inv_st.get(codigo_num, str(codigo_num)) if inv_st else str(codigo_num)
+        lineas_salida.append(f"{codigo_str},{len(materias_asignadas)}")
         for materia_asig in materias_asignadas:
-            lineas_salida.append(str(materia_asig.codigo))
+            mat_num = materia_asig.codigo
+            mat_str = inv_mat.get(mat_num, str(mat_num)) if inv_mat else str(mat_num)
+            lineas_salida.append(mat_str)
 
     return '\n'.join(lineas_salida)
 
@@ -341,6 +441,10 @@ class App:
         self.output_text.delete('1.0', tk.END)
 
     def start_process_thread(self):
+        # Leer valores necesarios en el hilo principal (NO pasar widgets al hilo)
+        algorithm = self.algorithm_var.get()
+        contenido = self.input_text.get('1.0', tk.END)
+
         # Deshabilitar botones y limpiar salida
         self.run_btn.config(state='disabled')
         self.open_btn.config(state='disabled')
@@ -348,16 +452,16 @@ class App:
         # Iniciar animación de 'Cargando...'
         self._loading_anim_state = 0
         self.animate_loading()
-        # Lanzar el cálculo en un hilo aparte
+
+        # Lanzar el cálculo en un hilo aparte pasando los datos leídos
         import threading
-        hilo_proceso = threading.Thread(target=self.process_file_thread, daemon=True)
+        hilo_proceso = threading.Thread(target=self.process_file_worker, args=(algorithm, contenido), daemon=True)
         hilo_proceso.start()
 
-    def process_file_thread(self):
-        # Esta función corre en un hilo aparte
-        algorithm = self.algorithm_var.get()
-        contenido = self.input_text.get('1.0', tk.END)
-        
+    def process_file_worker(self, algorithm: str, contenido: str):
+        """Worker que se ejecuta en un hilo separado. No debe acceder a widgets.
+        Todos los callbacks que tocan la UI se envían al hilo principal con root.after.
+        """
         try:
             if algorithm == 'fb':
                 # Fuerza Bruta
@@ -396,7 +500,7 @@ class App:
             # Capture message in default arg so the variable doesn't become unbound
             self.root.after(0, lambda m=msg: self.finish_process(error=m))
             return
-        
+
         # Escribir salida en archivo según algoritmo
         try:
             if algorithm == 'fb':
@@ -411,7 +515,8 @@ class App:
             # No hacemos fallar el flujo por error de IO; mostramos el error
             salida_formateada = salida_formateada + f"\n\n(Advertencia: no se pudo escribir archivo: {e})"
 
-        self.root.after(0, lambda: self.finish_process(output=salida_formateada))
+        # Entregar resultado a la UI en el hilo principal
+        self.root.after(0, lambda s=salida_formateada: self.finish_process(output=s))
 
     def finish_process(self, output=None, error=None, timeout=False):
         # Detener animación de 'Cargando...'
