@@ -30,6 +30,10 @@ Archivos entregados
 - Readme.txt
   - Este archivo: resumen de los contenidos e instrucciones de ejecución.
 
+ - Informe proyecto 1 ADA2.pdf
+   - Documento con el informe del proyecto sobre la "Repartición óptima de cupos para matrícula".
+     
+
 Formato de entrada esperado
 ---------------------------
 El formato de entrada que entiende la aplicación es (ejemplo):
@@ -97,7 +101,7 @@ Problemas comunes y soluciones
 - Ventana "No responde": Esto debe estar solucionado porque la interfaz lanza el cálculo en un hilo separado y solo actualiza widgets desde el hilo principal.
 - Errores al cargar módulos: Asegúrate de que `fuerzabruta.py` y `voraz.py` existan y exporten las funciones esperadas (`rocFB` y `rocV` respectivamente). La interfaz intenta detectar nombres alternativos, pero es mejor que los archivos se llamen exactamente como aquí.
 
-Contacto / Autores
+Estudiantes:
 ------------------
 - Juan Sebastian Tobar Moriones (20240194)
 - Juan Sebastian Rodas Ramirez (202359681)

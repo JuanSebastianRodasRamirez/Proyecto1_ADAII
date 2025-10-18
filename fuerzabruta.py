@@ -171,19 +171,39 @@ def soluciones_posibles(E: List[estudiante]) -> Iterator[Tuple[Tuple[materia_sol
 
 def rocFB(k:int, r:int, M:List[materia], E:List[estudiante], tiempo_max: Optional[float]=None) -> Tuple[List[estudiante], float]:
     """
-    Evalúa todas las soluciones posibles para asignar materias y selecciona la mejor.
+    Fuerza Bruta (rocFB)
 
-    Compara cada solución con la actual usando la función de insatisfacción general
-    y valida que cumpla con los cupos de las materias. Retorna la asignación que
-    minimiza la insatisfacción.
+    Firma esperada:
+        rocFB(k, r, M, E, tiempo_max=None)
 
-    Args:
-        M (list[materia]): Lista de materias con su cupo máximo.
-        E (list[estudiante]): Lista de estudiantes y sus materias solicitadas.
+    Parámetros:
+        - k: número de materias (no estrictamente usado internamente, pero
+             incluido por compatibilidad con la interfaz).
+        - r: número de estudiantes.
+        - M: lista de `materia` (namedtuple) con campos (codigo, cupo).
+        - E: lista de `estudiante` (objetos `estudiante`) con sus solicitudes.
+        - tiempo_max: (opcional) tiempo límite en segundos para abortar la búsqueda
+          y lanzar TimeoutError si se excede.
 
-    Returns:
-        list[estudiante]: Lista de estudiantes con las materias asignadas que cumplen
-        los cupos y minimizan la insatisfacción.
+    Retorno:
+        - (mejor_asignacion, mejor_insatisfaccion)
+          * mejor_asignacion: lista de objetos `estudiante` describiendo la
+            asignación de materias que cumple los cupos.
+          * mejor_insatisfaccion: float con la insatisfacción promedio correspondiente.
+
+    Excepciones:
+        - TimeoutError: si el tiempo de ejecución supera `tiempo_max`.
+
+    Observaciones de implementación:
+        - Genera todas las combinaciones por estudiante y realiza un recorrido
+          exhaustivo (producto cartesiano) con poda de factibilidad basada en
+          cupos. Es una búsqueda DFS/backtracking que actualiza `mejor_asignacion`.
+
+    Complejidad aproximada:
+        - Exponencial tanto en número de estudiantes como en número de solicitudes
+          por estudiante (producto cartesiano de combinaciones). Uso de memoria
+          contenido por usar generadores para el producto, pero el tiempo puede
+          crecer exponencialmente.
     """
 
     # Preparar datos y estado para la búsqueda exhaustiva (fuerza bruta)

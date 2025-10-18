@@ -22,6 +22,37 @@ Algoritmo voraz adaptativo para la repartición óptima de cupos.
 """
 
 def rocV(k, r, M, E):
+    """
+    Algoritmo Voraz (rocV)
+
+    Firma esperada:
+        rocV(k, r, M, E)
+
+    Parámetros:
+        - k: número de materias (para compatibilidad de interfaz).
+        - r: número de estudiantes.
+        - M: lista de tuplas (codigo_materia, cupo).
+        - E: lista de tuplas (codigo_estudiante, [(materia, prioridad)]).
+
+    Retorno:
+        - (A, F)
+          * A: diccionario mapping estudiante -> lista de materias asignadas.
+          * F: insatisfacción promedio calculada para la asignación.
+
+    Excepciones: esta implementación no lanza excepciones específicas, pero
+    puede devolver una asignación vacía si no hay cupos.
+
+    Observaciones de implementación:
+        - Fase 1: crea una lista de todas las solicitudes y las ordena por un
+          score heurístico (prioridad / (cupo * nº_materias_del_estudiante)).
+        - Fase 2 (simple en esta implementación): asigna greedily respetando cupos
+          y no realiza reajustes complejos salvo evitar duplicados.
+
+    Complejidad aproximada:
+        - Ordenar las solicitudes domina con O(S log S) donde S es el número
+          total de solicitudes (suma de |ms_j|). La asignación greedy es O(S).
+    """
+
     # Inicializar cupos disponibles
     cupos = {cod: cupo for cod, cupo in M}
     A = {ej: [] for ej, _ in E}

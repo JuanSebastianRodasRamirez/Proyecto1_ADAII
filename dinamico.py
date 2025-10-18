@@ -101,11 +101,40 @@ def subconjuntos_validos(msj, cupos_actuales, materias):
 # ----------------------------------------
 def rocPD(M, E, tiempo_max: Optional[float] = None):
     """
-    M: lista de tuplas (codigo_materia, cupo)
-    E: lista de tuplas (codigo_estudiante, [(materia, prioridad)])
-    
-    Retorna: (solucion, costo_optimo)
-    donde solucion es una lista de (estudiante, A_j) y costo_optimo es float
+        Programa Dinámica (rocPD)
+
+        Firma esperada:
+                rocPD(M, E, tiempo_max=None)
+
+        Parámetros:
+                - M: lista de tuplas (codigo_materia, cupo). Cada elemento es (m, c).
+                - E: lista de tuplas (codigo_estudiante, [(materia, prioridad)]). Cada
+                         entrada representa a un estudiante y su lista de solicitudes.
+                - tiempo_max: (opcional) límite en segundos para abortar la búsqueda y
+                         lanzar TimeoutError si se excede.
+
+        Retorno:
+                - (solucion, costo_optimo)
+                    * solucion: lista de pares (estudiante, A_j) en el mismo orden de E,
+                        donde A_j es la colección de materias asignadas al estudiante.
+                    * costo_optimo: float con la insatisfacción promedio mínima encontrada.
+
+        Excepciones:
+                - TimeoutError: si el tiempo de ejecución supera `tiempo_max`.
+
+        Observaciones de implementación:
+                - El algoritmo codifica cada estado de cupos como un número (funciones
+                    vector_a_numero / numero_a_vector). Recorre los estudiantes y usa
+                    programación dinámica para computar la insatisfacción mínima por
+                    estado. Se mantiene un diccionario `decision` para reconstruir la
+                    solución final.
+
+        Complejidad aproximada:
+                - El número de estados es el producto de (cupo_i + 1) para cada materia.
+                - El bucle principal itera sobre r (nº estudiantes) y sobre todos los
+                    estados, por lo que la complejidad en tiempo y memoria puede crecer
+                    exponencialmente con el número y tamaño de cupos. Para entradas
+                    grandes puede ser inviable.
     """
     if not E:  # Si no hay estudiantes
         return [], 0.0
